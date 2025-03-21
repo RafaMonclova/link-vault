@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "link-vault",
-    "slug": "link-vault",
+    "name": "linq-app",
+    "slug": "linq-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

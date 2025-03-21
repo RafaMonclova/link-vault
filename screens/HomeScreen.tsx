@@ -32,7 +32,7 @@ export default function HomeScreen() {
           },
         ]}
       >
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Gestor de Enlaces</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Linq</Text>
         <TouchableOpacity style={styles.themeButton}>
           <Ionicons name="moon-outline" size={24} color={colors.text} />
         </TouchableOpacity>
@@ -46,7 +46,7 @@ export default function HomeScreen() {
         scrollEventThrottle={16}
       >
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Gestor de Enlaces</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Linq</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             Organiza y accede a tus enlaces favoritos en un solo lugar
           </Text>
