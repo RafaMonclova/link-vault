@@ -10,7 +10,6 @@ import HomeScreen from "./screens/HomeScreen"
 import NewLinkScreen from "./screens/NewLinkScreen"
 import CategoriesScreen from "./screens/CategoriesScreen"
 import SearchScreen from "./screens/SearchScreen"
-import ProfileScreen from "./screens/ProfileScreen"
 
 // Theme provider
 import { ThemeProvider } from "./components/ThemeProvider"
@@ -35,8 +34,6 @@ function AppNavigator() {
             iconName = focused ? "folder" : "folder-outline"
           } else if (route.name === "Search") {
             iconName = focused ? "search" : "search-outline"
-          } else if (route.name === "Profile") {
-            iconName = focused ? "person" : "person-outline"
           }
 
           return <Ionicons name={iconName as keyof typeof Ionicons.glyphMap} size={size} color={color} />
@@ -58,7 +55,6 @@ function AppNavigator() {
       <Tab.Screen name="New" component={NewLinkScreen} options={{ title: "Nuevo Enlace" }} />
       <Tab.Screen name="Categories" component={CategoriesScreen} options={{ title: "Categorías" }} />
       <Tab.Screen name="Search" component={SearchScreen} options={{ title: "Buscar" }} />
-      <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: "Perfil" }} />
     </Tab.Navigator>
   )
 }

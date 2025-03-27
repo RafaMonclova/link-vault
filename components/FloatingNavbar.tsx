@@ -27,7 +27,6 @@ export default function FloatingNavbar() {
     { icon: "add-circle", label: "Nuevo", screen: "New" },
     { icon: "folder", label: "Categorías", screen: "Categories" },
     { icon: "search", label: "Buscar", screen: "Search" },
-    { icon: "person", label: "Perfil", screen: "Profile" },
   ]
 
   return (

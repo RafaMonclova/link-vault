@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   View,
   Text,
@@ -14,37 +14,50 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
 import { useTheme } from "../hooks/useTheme"
 import FloatingNavbar from "../components/FloatingNavbar"
-
-// Categorías iniciales
-const initialCategories = [
-  "Trabajo",
-  "Educación",
-  "Entretenimiento",
-  "Redes Sociales",
-  "Noticias",
-  "Compras",
-  "Herramientas",
-  "Desarrollo",
-  "Diseño",
-  "Otros",
-]
+import { getCategories, addCategory, deleteCategory, isCategoryInUse, getCategoryCounts } from "../utils/storage"
 
 export default function CategoriesScreen() {
   const { colors } = useTheme()
-  const [categories, setCategories] = useState(initialCategories)
+  const [categories, setCategories] = useState<string[]>([])
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
   const [newCategory, setNewCategory] = useState("")
   const [isModalVisible, setIsModalVisible] = useState(false)
   const [error, setError] = useState("")
   const [editMode, setEditMode] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   // Animaciones
   const slideAnim = useRef(new Animated.Value(0)).current
   const { width } = Dimensions.get("window")
+
+  // Cargar categorías
+  const loadCategories = async () => {
+    setLoading(true)
+    try {
+      const storedCategories = await getCategories()
+      setCategories(storedCategories)
+
+      const counts = await getCategoryCounts()
+      setCategoryCounts(counts)
+    } catch (error) {
+      console.error("Error loading categories:", error)
+      Alert.alert("Error", "No se pudieron cargar las categorías")
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
+
+  useEffect(() => {
+    loadCategories()
+  }, [])
 
   // Mostrar/ocultar botones de eliminar
   const toggleEditMode = () => {
@@ -57,7 +70,7 @@ export default function CategoriesScreen() {
   }
 
   // Añadir nueva categoría
-  const addCategory = () => {
+  const handleAddCategory = async () => {
     const trimmedCategory = newCategory.trim()
 
     // Validar que no esté vacío
@@ -72,32 +85,78 @@ export default function CategoriesScreen() {
       return
     }
 
-    // Añadir la categoría
-    setCategories([...categories, trimmedCategory])
-    setNewCategory("")
-    setError("")
-    setIsModalVisible(false)
+    try {
+      // Añadir la categoría
+      await addCategory(trimmedCategory)
+
+      // Actualizar la lista local
+      setCategories([...categories, trimmedCategory])
+      setCategoryCounts({ ...categoryCounts, [trimmedCategory]: 0 })
+
+      setNewCategory("")
+      setError("")
+      setIsModalVisible(false)
+    } catch (error) {
+      console.error("Error adding category:", error)
+      setError("No se pudo añadir la categoría")
+    }
   }
 
   // Eliminar categoría
-  const deleteCategory = (category) => {
-    Alert.alert("Eliminar categoría", `¿Estás seguro de que quieres eliminar la categoría "${category}"?`, [
-      {
-        text: "Cancelar",
-        style: "cancel",
-      },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: () => {
-          setCategories(categories.filter((cat) => cat !== category))
+  const handleDeleteCategory = async (category: string) => {
+    try {
+      // Verificar si la categoría está en uso
+      const inUse = await isCategoryInUse(category)
+
+      let message = `¿Estás seguro de que quieres eliminar la categoría "${category}"?`
+
+      if (inUse) {
+        message += "\n\nEsta categoría está en uso. Los enlaces asociados se moverán a la categoría 'Otros'."
+      }
+
+      Alert.alert("Eliminar categoría", message, [
+        {
+          text: "Cancelar",
+          style: "cancel",
         },
-      },
-    ])
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteCategory(category)
+
+              // Actualizar la lista local
+              setCategories(categories.filter((cat) => cat !== category))
+
+              // Actualizar conteos
+              const newCounts = { ...categoryCounts }
+              delete newCounts[category]
+              if (inUse && newCounts["Otros"]) {
+                newCounts["Otros"] += categoryCounts[category] || 0
+              }
+              setCategoryCounts(newCounts)
+            } catch (error) {
+              console.error("Error deleting category:", error)
+              Alert.alert("Error", "No se pudo eliminar la categoría")
+            }
+          },
+        },
+      ])
+    } catch (error) {
+      console.error("Error checking if category is in use:", error)
+      Alert.alert("Error", "No se pudo verificar si la categoría está en uso")
+    }
+  }
+
+  // Refrescar la lista
+  const handleRefresh = () => {
+    setRefreshing(true)
+    loadCategories()
   }
 
   // Renderizar cada categoría
-  const renderCategory = ({ item }) => {
+  const renderCategory = ({ item }: { item: string }) => {
     const translateX = slideAnim.interpolate({
       inputRange: [0, 1],
       outputRange: [0, -50],
@@ -121,10 +180,16 @@ export default function CategoriesScreen() {
             <Text style={[styles.categoryText, { color: colors.text }]}>{item}</Text>
           </View>
 
+          <View style={styles.categoryMeta}>
+            <Text style={[styles.categoryCount, { color: colors.textSecondary }]}>
+              {categoryCounts[item] || 0} enlaces
+            </Text>
+          </View>
+
           {editMode && (
             <TouchableOpacity
               style={[styles.deleteButton, { backgroundColor: "#FEE2E2" }]}
-              onPress={() => deleteCategory(item)}
+              onPress={() => handleDeleteCategory(item)}
             >
               <Ionicons name="trash-outline" size={18} color="#EF4444" />
             </TouchableOpacity>
@@ -188,7 +253,7 @@ export default function CategoriesScreen() {
 
             <TouchableOpacity
               style={[styles.modalButton, styles.addButton, { backgroundColor: colors.primary }]}
-              onPress={addCategory}
+              onPress={handleAddCategory}
             >
               <Text style={[styles.buttonText, { color: "white" }]}>Añadir</Text>
             </TouchableOpacity>
@@ -197,6 +262,18 @@ export default function CategoriesScreen() {
       </KeyboardAvoidingView>
     </Modal>
   )
+
+  if (loading && !refreshing) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["bottom"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Cargando categorías...</Text>
+        </View>
+        <FloatingNavbar />
+      </SafeAreaView>
+    )
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["bottom"]}>
@@ -227,6 +304,20 @@ export default function CategoriesScreen() {
           styles.list,
           { paddingBottom: 100 }, // Espacio para la barra flotante
         ]}
+        onRefresh={handleRefresh}
+        refreshing={refreshing}
+        ListEmptyComponent={() => (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="folder-outline" size={48} color={colors.textSecondary} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No hay categorías disponibles</Text>
+            <TouchableOpacity
+              style={[styles.emptyButton, { backgroundColor: colors.primary }]}
+              onPress={() => setIsModalVisible(true)}
+            >
+              <Text style={styles.emptyButtonText}>Añadir categoría</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       />
 
       {renderModal()}
@@ -301,6 +392,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
   },
+  categoryMeta: {
+    marginRight: 8,
+  },
+  categoryCount: {
+    fontSize: 12,
+  },
   deleteButton: {
     width: 36,
     height: 36,
@@ -368,6 +465,35 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 16,
+    fontWeight: "500",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  emptyButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  emptyButtonText: {
+    color: "white",
     fontWeight: "500",
   },
 })

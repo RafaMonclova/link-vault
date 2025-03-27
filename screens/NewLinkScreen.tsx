@@ -1,5 +1,3 @@
-"use client"
-
 import { useState, useEffect } from "react"
 import {
   View,
@@ -21,20 +19,12 @@ import { useNavigation } from "@react-navigation/native"
 import * as ImagePicker from "expo-image-picker"
 import { useTheme } from "../hooks/useTheme"
 import FloatingNavbar from "../components/FloatingNavbar"
+import { addLink } from "../utils/storage"
+import { getCategories, addCategory, deleteCategory, isCategoryInUse, getCategoryCounts } from "../utils/storage"
+import { useFocusEffect } from "@react-navigation/native"
+import React from "react"
 
-// Categorías disponibles
-const categories = [
-  "Trabajo",
-  "Educación",
-  "Entretenimiento",
-  "Redes Sociales",
-  "Noticias",
-  "Compras",
-  "Herramientas",
-  "Desarrollo",
-  "Diseño",
-  "Otros",
-]
+
 
 export default function NewLinkScreen() {
   const navigation = useNavigation()
@@ -46,6 +36,8 @@ export default function NewLinkScreen() {
   const [selectedCategory, setSelectedCategory] = useState("")
   const [isFeatured, setIsFeatured] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [categories, setCategories] = useState<string[]>([])
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
   const [errors, setErrors] = useState({
     title: "",
     url: "",
@@ -59,6 +51,29 @@ export default function NewLinkScreen() {
   const [iconUrl, setIconUrl] = useState("")
   const [showIconModal, setShowIconModal] = useState(false)
   const [generatedInitials, setGeneratedInitials] = useState("")
+
+  // Cargar categorías
+  const loadCategories = async () => {
+    try {
+      const storedCategories = await getCategories()
+      setCategories(storedCategories)
+
+      const counts = await getCategoryCounts()
+      setCategoryCounts(counts)
+    } catch (error) {
+      console.error("Error loading categories:", error)
+      Alert.alert("Error", "No se pudieron cargar las categorías")
+    } finally {
+    }
+  }
+
+  // Cargar categorías cada vez que la pantalla recibe el foco
+  useFocusEffect(
+    React.useCallback(() => {
+      loadCategories()
+      return () => {}
+    }, [])
+  )
 
   // Validar URL
   const isValidUrl = (urlString) => {
@@ -131,7 +146,7 @@ export default function NewLinkScreen() {
   }
 
   // Manejar el envío del formulario
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Validar campos
     const newErrors = {
       title: "",
@@ -164,9 +179,32 @@ export default function NewLinkScreen() {
     if (isValid) {
       setIsLoading(true)
 
-      // Simular envío a API
-      setTimeout(() => {
-        setIsLoading(false)
+      try {
+        // Preparar el valor del icono según el tipo
+        let iconValue = ""
+        switch (iconType) {
+          case "gallery":
+            iconValue = iconImage
+            break
+          case "url":
+            iconValue = iconUrl
+            break
+          case "initials":
+          default:
+            iconValue = generatedInitials
+            break
+        }
+
+        // Crear el nuevo enlace
+        await addLink({
+          title,
+          url,
+          category: selectedCategory,
+          isFeatured,
+          iconType,
+          iconValue,
+        })
+
         Alert.alert("Enlace guardado", `El enlace "${title}" ha sido guardado correctamente.`, [
           {
             text: "OK",
@@ -183,7 +221,12 @@ export default function NewLinkScreen() {
             },
           },
         ])
-      }, 1000)
+      } catch (error) {
+        console.error("Error saving link:", error)
+        Alert.alert("Error", "No se pudo guardar el enlace. Inténtalo de nuevo.")
+      } finally {
+        setIsLoading(false)
+      }
     }
   }
 
